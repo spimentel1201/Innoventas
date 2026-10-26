@@ -42,7 +42,7 @@ export async function invokeEdgeFunction<TResponse>(
     method: init?.method ?? 'POST',
     headers: {
       apikey: SUPABASE_ANON_KEY,
-      ...(session ? { Authorization: `Bearer ${session.access_token}` } : {}),
+      Authorization: `Bearer ${session?.access_token ?? SUPABASE_ANON_KEY}`,
       ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
       ...init?.headers,
     },
