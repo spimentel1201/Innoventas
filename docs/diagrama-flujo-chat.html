@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<title>InnovVentas — Flujo conversacional del chat (InnovaBot)</title>
+<style>
+  body { font-family: "Segoe UI", system-ui, sans-serif; background: #0b1220; margin: 0; padding: 24px 32px; }
+  h1 { color: #e2e8f0; font-size: 20px; margin: 0 0 4px; }
+  p.sub { color: #94a3b8; font-size: 13px; margin: 0 0 16px; }
+  .legend { display: flex; gap: 12px; margin: 0 0 20px; font-size: 12.5px; }
+  .legend span { padding: 4px 10px; border-radius: 6px; font-weight: 600; }
+  .l-rec { background: #059669; color: #fff; }
+  .l-az  { background: #2563eb; color: #fff; }
+  .l-fb  { background: #d97706; color: #fff; }
+  .l-lim { background: #dc2626; color: #fff; }
+  .l-sec { background: #7c3aed; color: #fff; }
+  .mermaid { background: #ffffff; border-radius: 14px; padding: 20px; }
+</style>
+</head>
+<body>
+  <h1>InnovVentas · InnovaBot — Diagrama de flujo conversacional</h1>
+  <p class="sub">Implementación real: <code>supabase/functions/chat/index.ts</code> · Edge Function <code>chat</code> · Supabase <code>ynwrithisxvnhyhpgrzj</code> · Azure CQA <code>InnovaBot/production</code></p>
+  <div class="legend">
+    <span class="l-rec">mode=recommendation (BD viva)</span>
+    <span class="l-az">mode=azure (KB)</span>
+    <span class="l-fb">mode=fallback</span>
+    <span class="l-lim">Rate limit</span>
+    <span class="l-sec">Seguridad</span>
+  </div>
+  <pre class="mermaid">
+flowchart TD
+    A["👤 Usuario escribe en el chat"] --> B["POST /functions/v1/chat<br>{ message, sessionId }<br>+ JWT opcional · x-innov-session"]
+    B --> C{"OPTIONS / CORS?"}
+    C -- OPTIONS --> C1["Return ok"]
+    C -- "POST / GET" --> D["Validar identidad<br>Supabase Auth (si traea Authorization)"]
+
+    E{"¿Evento handoff?"}
+    D --> E
+    E -- "handoff_requested" --> E1["chat_events + status='handoff'<br>pasa al equipo humano"]
+    E -- mensaje normal --> F["Validación Zod<br>1–600 chars · sessionId 8–64"]
+
+    F --> G["Conversación única por sesión<br>chat_conversations"]
+    G --> H{"Rate limit ≤ 8 msg / 60 s"}
+    H -- "excedido" --> H1["429 TOO_MANY_MESSAGES"]
+    H -- ok --> I["chat_messages + evento message_sent"]
+
+    I --> J{"detectRecIntent<br>keywords por intención"}
+    J -- "estudio · gaming ·<br>arquitectura · creativo" --> K["fetchCatalogLive<br>published_products"]
+    J -- "comparacion ('¿por qué la…',<br>'diferencia entre…')" --> K
+    K --> L["buildRecommendation<br>estudio = más barata<br>gaming = mejor GPU<br>arquitectura = GPU+RAM<br>creativo = más RAM"]
+    L --> M{"¿Recomendación armada?"}
+    M -- sí --> N1["💬 Respuesta en vivo<br>mode='recommendation'<br>precio S/ + stock vistos hoy<br>+ evento 'recommendation'"]
+    M -- "no / falla BD" --> P
+
+    J -- "no = políticas, pedidos,<br>envíos, devoluciones" --> P["askCqa → Azure Language CQA<br>proyecto InnovaBot · production<br>top 3 por confidenceScore"]
+    P --> Q{"confidence ≥ 0.35?"}
+    Q -- sí --> R["💬 Respuesta de la KB<br>mode='azure'"]
+    Q -- no --> S["💬 Fallback honesto<br>mode='fallback'<br>+ evento 'fallback'"]
+
+    N1 --> T["Guardar assistant message<br>confianza + metadata.mode"]
+    R --> T
+    S --> T
+    T --> U["JSON: { conversationId,<br>message, mode, confidence, intent }"]
+    U --> V["🗣️ Frontend renderiza markdown<br>(negrita + saltos de línea)"]
+
+    V --> W{"GET historial"}
+    W -- "sesión ajena" --> W1["403 FORBIDDEN"]
+    W -- "propia" --> W2["Últimos 50 mensajes"]
+
+    B -.-> X["🔒 key de Azure solo en<br>secrets de Edge Function"]
+
+    style N1 fill:#059669,color:#fff
+    style R fill:#2563eb,color:#fff
+    style S fill:#d97706,color:#fff
+    style H1 fill:#dc2626,color:#fff
+    style W1 fill:#dc2626,color:#fff
+    style X fill:#7c3aed,color:#fff
+  </pre>
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({ startOnLoad: true, theme: "neutral", flowchart: { htmlLabels: true } });
+  </script>
+</body>
+</html>
