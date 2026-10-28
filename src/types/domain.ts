@@ -146,12 +146,52 @@ export interface AdminDashboardStats {
   open_support: number
 }
 
+// ── Chat: origen de la respuesta y constructor de kit ─────────────────────────
+
+/** Origen de la respuesta: Azure CQA (A), búsqueda interna en la BD (W) o fallback (F). */
+export type ChatAnswerMode = 'azure' | 'fallback' | 'recommendation' | 'catalog' | 'kit'
+
+/** Opción de un paso del kit (con precio final ya resuelto, oferta incluida). */
+export interface KitOption {
+  id: string
+  slug: string
+  name: string
+  price: number
+  stock: number
+}
+
+/** Producto elegido dentro del kit. */
+export interface KitSelection {
+  id: string
+  slug: string
+  name: string
+  price: number
+  category: string
+}
+
+/** Estado del pedido guiado; viaja en `metadata.kit` del último mensaje del asistente. */
+export interface KitState {
+  profile: string
+  categories: string[]
+  stepIndex: number
+  selections: KitSelection[]
+  options: KitOption[]
+  status: 'choosing' | 'done'
+  total: number
+}
+
+export interface ChatMessageMetadata {
+  mode?: ChatAnswerMode
+  kit?: KitState
+}
+
 export interface ChatMessage {
   id: string
   role: 'user' | 'assistant'
   content: string
   confidence: number | null
   createdAt: string
+  metadata?: ChatMessageMetadata | null
 }
 
 export interface ChatResponse {

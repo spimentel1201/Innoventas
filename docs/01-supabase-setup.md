@@ -39,6 +39,7 @@ Las migraciones (en orden) crean:
 | `0004_storage.sql` | Buckets `product-images` (público) y `store-banners` (público, admin); políticas de subida solo admin |
 | `0005_seed.sql` | Datos DEMO: 8 categorías, 27 productos técnicos, imágenes example.com sin URLs inventadas, 6 ofertas por fechas |
 | `0006_seed_demo_sales.sql` | Función `seed_demo_sales()` para poblar ventas demo y habilitar «Más vendidos» |
+| `0010_mas_productos.sql` | Ampliación de catálogo (+11 productos: 5 audífonos y 6 de otras categorías, imágenes demo y 4 ofertas) → 38 productos |
 
 ### Poblar ventas demo (opcional, recomendado para la demo)
 

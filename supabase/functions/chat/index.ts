@@ -8,6 +8,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2";
 import { z } from "https://esm.sh/zod@3.23.8";
+import { detectKitIntent, handleKitMessage, startKit, type KitState } from "./kit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -186,7 +187,76 @@ function solesPriceLine(p: CatalogRow): string {
   const was = p.offer_price != null ? ` (antes ${soles(p.price)})` : "";
   const stock =
     p.stock > 0 ? `${p.stock} ${p.stock === 1 ? "unidad" : "unidades"} disponibles` : "está sin stock por el momento en la web";
-  return `· ${p.name} (${p.brand}) — ${soles(effective)}${was} · ${stock}`;
+  return `· [${p.name}](/producto/${p.slug}) (${p.brand}) — ${soles(effective)}${was} · ${stock}`;
+}
+
+// ── Listado vivo por categoría (botones del widget) ──────────────────────────
+// Las píldoras del chat envían preguntas como «¿Qué audífonos tienen disponibles?».
+// En lugar de responder con texto fijo de la KB, se consulta `published_products`
+// y se devuelven precio (S/), oferta y stock reales de la categoría pedida.
+interface CatalogCategory {
+  slug: string;
+  label: string;
+  keywords: string[];
+}
+
+// Orden relevante: `accesorios` va antes que `mouse` para que «mousepad» no caiga
+// en la categoría de mouse.
+const CATALOG_CATEGORIES: CatalogCategory[] = [
+  {
+    slug: "accesorios",
+    label: "accesorios",
+    keywords: ["accesorio", "hub usb", "docking", "webcam", "mousepad", "mouse pad"],
+  },
+  {
+    slug: "audifonos",
+    label: "audífonos",
+    keywords: ["audifon", "auricular", "audiculo", "diadema", "headphone", "earbud", "cascos"],
+  },
+  { slug: "laptops", label: "laptops", keywords: ["laptop", "notebook", "computadora portatil", "pc portatil"] },
+  { slug: "monitores", label: "monitores", keywords: ["monitor", "ultrawide", "pantalla para pc"] },
+  { slug: "teclados", label: "teclados", keywords: ["teclado"] },
+  { slug: "impresoras", label: "impresoras", keywords: ["impresora", "imprimir documentos", "escaneador"] },
+  {
+    slug: "almacenamiento",
+    label: "almacenamiento",
+    keywords: ["almacenamiento", "ssd", "disco duro", "disco externo", "memoria microsd", "memoria sd"],
+  },
+  { slug: "mouse", label: "mouse", keywords: ["mouse", "raton"] },
+];
+
+function detectCatalogCategory(message: string): CatalogCategory | null {
+  const norm = " " + normalizeText(message) + " ";
+  return CATALOG_CATEGORIES.find((c) => c.keywords.some((k) => norm.includes(k))) ?? null;
+}
+
+// Devuelve null si la categoría no existe en el catálogo (→ se continúa con CQA).
+async function buildCategoryListing(
+  supabase: SupabaseClient,
+  category: CatalogCategory,
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("published_products")
+    .select("name, brand, slug, price, stock, specifications, offer_price, category_slug")
+    .eq("category_slug", category.slug)
+    .order("price", { ascending: true });
+  if (error) throw new Error("CATALOG_QUERY_FAILED");
+
+  const rows = (data ?? []) as CatalogRow[];
+  if (rows.length === 0) return null;
+
+  const top = rows.slice(0, 5);
+  const rest = rows.length - top.length;
+  const withStock = rows.filter((r) => r.stock > 0).length;
+  const lines = [
+    `Tenemos ${rows.length} ${category.label} en el **Catálogo** (${withStock} con stock inmediato). Precios y stock en vivo:`,
+    ...top.map(solesPriceLine),
+  ];
+  if (rest > 0) lines.push(`…y ${rest} más en la sección **Catálogo**.`);
+  lines.push(
+    "Dime para qué los vas a usar (gaming, estudio, trabajo, llamadas) y te recomiendo el indicado.",
+  );
+  return lines.join("\n");
 }
 
 interface Picks {
@@ -332,7 +402,7 @@ Deno.serve(async (req) => {
       }
       const { data: rows } = await supabase
         .from("chat_messages")
-        .select("id, role, content, confidence, created_at")
+        .select("id, role, content, confidence, created_at, metadata")
         .eq("conversation_id", conv.id)
         .order("created_at", { ascending: true })
         .limit(50);
@@ -438,12 +508,84 @@ Deno.serve(async (req) => {
     // ── Recomendaciones híbridas (catálogo vivo) ──────────────────────────
     // Si el mensaje expresa una intención de recomendación/comparación, responde
     // con datos reales de `published_products` (precio en S/, stock, specs).
+    // ── Rutas de respuesta (en este orden) ──────────────────────────────
+    // 0. Kit en curso (pedido guiado): elegir opción, saltar o terminar.
+    // 1. Inicio de kit nuevo («armar kit gamer»…).
+    // 2. Listado vivo por categoría: manda cuando el mensaje nombra una categoría
+    //    concreta (los botones del widget) y no es una recomendación de laptop.
+    // 3. Recomendación híbrida por uso (gaming/estudio/arquitectura/creativo).
+    // 4. Azure CQA para políticas y dudas generales.
+    // ── Constructor de kit: el estado vive en metadata del último mensaje ──
+    let kit: KitState | null = null;
+    {
+      const { data: last } = await supabase
+        .from("chat_messages")
+        .select("metadata")
+        .eq("conversation_id", conversationId)
+        .eq("role", "assistant")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const meta = (last?.metadata ?? null) as { kit?: KitState } | null;
+      kit = meta?.kit && meta.kit.status === "choosing" ? meta.kit : null;
+    }
+
     let answer: string | undefined;
     let confidence: number | null = null;
-    let mode: "azure" | "fallback" | "recommendation" = "azure";
+    let mode: "azure" | "fallback" | "recommendation" | "catalog" | "kit" = "azure";
     let recIntent: RecIntent | null = detectRecIntent(message);
+    // ── 0. Kit en curso: elegir opción, saltar o terminar ────────────────
+    let kitHandled = false;
+    if (kit) {
+      try {
+        const step = await handleKitMessage(supabase, kit, message);
+        if (step) {
+          answer = step.answer;
+          kit = step.kit;
+          mode = "kit";
+          kitHandled = true;
+          recIntent = null;
+        }
+      } catch (e) {
+        console.error("[chat] kit: falló el paso, continúa la ruta normal:", e);
+      }
+    }
 
-    if (recIntent) {
+    // ── 1. Inicio de kit nuevo («armar kit gamer», «kit de estudio»…) ────
+    if (answer === undefined && !kitHandled) {
+      const profile = detectKitIntent(message);
+      if (profile) {
+        try {
+          const started = await startKit(supabase, profile);
+          answer = started.answer;
+          kit = started.kit;
+          mode = "kit";
+          kitHandled = true;
+          recIntent = null;
+        } catch (e) {
+          console.error("[chat] kit: no se pudo iniciar, continúa la ruta normal:", e);
+        }
+      }
+    }
+
+    const catalogCategory = detectCatalogCategory(message);
+    const useListing =
+      catalogCategory !== null && !(recIntent !== null && catalogCategory.slug === "laptops");
+
+    if (!kitHandled && useListing && catalogCategory) {
+      try {
+        const listing = await buildCategoryListing(supabase, catalogCategory);
+        if (listing) {
+          answer = listing;
+          mode = "catalog";
+          recIntent = null;
+        }
+      } catch (e) {
+        console.error("[chat] listado de categoría falló, cae a CQA:", e);
+      }
+    }
+
+    if (!kitHandled && answer === undefined && recIntent) {
       try {
         const rows = await fetchCatalogLive(supabase);
         const rec = buildRecommendation(recIntent, rows);
@@ -498,9 +640,9 @@ Deno.serve(async (req) => {
         role: "assistant",
         content: answer,
         confidence,
-        metadata: { mode },
+        metadata: kit ? { mode, kit } : { mode },
       })
-      .select("id, role, content, confidence, created_at")
+      .select("id, role, content, confidence, created_at, metadata")
       .single();
     if (insErr) throw insErr;
 

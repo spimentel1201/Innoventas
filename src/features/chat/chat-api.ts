@@ -1,5 +1,7 @@
 import { invokeEdgeFunction } from '@/lib/edge'
-import type { ChatMessage } from '@/types/domain'
+import type { ChatAnswerMode, ChatMessage, ChatMessageMetadata } from '@/types/domain'
+
+export type { ChatAnswerMode }
 
 /** Mensaje como lo entrega la Edge Function (fecha en formato BD). */
 export interface ChatMessageRow {
@@ -8,6 +10,7 @@ export interface ChatMessageRow {
   content: string
   created_at: string
   confidence: number | null
+  metadata?: ChatMessageMetadata | null
 }
 
 export function toChatMessage(row: ChatMessageRow): ChatMessage {
@@ -17,6 +20,7 @@ export function toChatMessage(row: ChatMessageRow): ChatMessage {
     content: row.content,
     confidence: row.confidence,
     createdAt: row.created_at,
+    metadata: row.metadata ?? null,
   }
 }
 
@@ -24,7 +28,7 @@ export function toChatMessage(row: ChatMessageRow): ChatMessage {
 export async function sendChatMessage(body: {
   message: string
   sessionId: string
-}): Promise<{ conversationId: string; message: ChatMessageRow; mode: 'azure' | 'fallback' }> {
+}): Promise<{ conversationId: string; message: ChatMessageRow; mode: ChatAnswerMode }> {
   return invokeEdgeFunction('chat', body)
 }
 

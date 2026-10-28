@@ -5,22 +5,57 @@ import { Link } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { confidentConfidenceLabel } from '@/lib/utils'
 import { useChat } from './use-chat'
-import { type ChatMessage } from '@/types/domain'
+import { KitCartButton } from './kit-cart-button'
+import { type ChatAnswerMode, type ChatMessage } from '@/types/domain'
 
-/** Render mínimo de markdown del asistente: **negrita** y saltos de línea. Texto plano, sin HTML. */
-function renderAssistantContent(content: string) {
+/** Render mínimo de markdown del asistente: **negrita**, [enlaces](/ruta) y saltos de línea. */
+function renderAssistantContent(content: string, onNavigate?: () => void) {
   const lines = content.split('\n')
   return lines.map((line, li) => (
     <span key={li}>
       {li > 0 && <br />}
-      {line.split(/\*\*(.+?)\*\*/g).map((part, i) => (i % 2 === 1 ? <strong key={i} className="font-semibold">{part}</strong> : <span key={i}>{part}</span>))}
+      {line
+        .split(/(\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\))/g)
+        .filter(Boolean)
+        .map((part, i) => {
+          if (part.startsWith('**') && part.endsWith('**')) {
+            return (
+              <strong key={i} className="font-semibold">
+                {part.slice(2, -2)}
+              </strong>
+            )
+          }
+          const link = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/)
+          if (link && (link[2].startsWith('/') || link[2].startsWith('http'))) {
+            return (
+              <Link
+                key={i}
+                to={link[2]}
+                onClick={onNavigate}
+                className="font-medium text-brand-700 underline-offset-2 hover:underline"
+              >
+                {link[1]}
+              </Link>
+            )
+          }
+          return <span key={i}>{part}</span>
+        })}
     </span>
   ))
 }
 
-function MessageBubble({ message }: { message: ChatMessage }) {
+/** Indicador de origen en pruebas: (A) Azure · (W) base de datos de la tienda · (F) fallback. */
+function sourceTagOf(mode: ChatAnswerMode | undefined): string | null {
+  if (!mode) return null
+  if (mode === 'azure') return 'A'
+  if (mode === 'fallback') return 'F'
+  return 'W'
+}
+
+function MessageBubble({ message, onNavigate }: { message: ChatMessage; onNavigate?: () => void }) {
   const isUser = message.role === 'user'
   const lowConfidence = !isUser && message.confidence != null && message.confidence < 0.35
+  const tag = isUser ? null : sourceTagOf(message.metadata?.mode)
   return (
     <div className={cn('flex flex-col', isUser ? 'items-end' : 'items-start')}>
       <div
@@ -34,7 +69,23 @@ function MessageBubble({ message }: { message: ChatMessage }) {
         {isUser ? (
           message.content
         ) : (
-          renderAssistantContent(message.content)
+          <>
+            {tag && (
+              <span
+                className="mr-1 font-mono text-[10px] text-slate-400"
+                title={
+                  tag === 'A'
+                    ? 'Respuesta de Azure'
+                    : tag === 'W'
+                      ? 'Respuesta de la base de datos de la tienda'
+                      : 'Respuesta de reserva'
+                }
+              >
+                ({tag})
+              </span>
+            )}
+            {renderAssistantContent(message.content, onNavigate)}
+          </>
         )}
       </div>
       {lowConfidence && (
@@ -50,6 +101,12 @@ export function ChatWidget() {
   const scrollerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const { messages, isBusy, send, loadHistory, suggestions } = useChat()
+
+  // Última respuesta del asistente: de ahí salen los chips del kit y el botón al carrito.
+  const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant') ?? null
+  const kitState = lastAssistant?.metadata?.kit ?? null
+  const kitChoosing = kitState?.status === 'choosing' ? kitState : null
+  const kitDone = kitState?.status === 'done' && kitState.selections.length > 0 ? kitState : null
 
   useEffect(() => {
     if (open) {
@@ -104,13 +161,13 @@ export function ChatWidget() {
                   <Sparkles className="h-3.5 w-3.5 text-brand-500" /> ¡Hola! Soy el asistente de InnovVentas.
                 </p>
                 <p className="mt-1">
-                  Pregúntame sobre productos, envíos, garantías o cómo rastrear tu pedido. Al pulsar una
-                  sugerencia se envía la consulta automáticamente.
+                  Pregúntame sobre productos, envíos, garantías o cómo rastrear tu pedido. Usa los botones
+                  de abajo para recorrer el catálogo o escribe tu consulta.
                 </p>
               </div>
             )}
             {messages.map((m) => (
-              <MessageBubble key={m.id} message={m} />
+              <MessageBubble key={m.id} message={m} onNavigate={() => setOpen(false)} />
             ))}
             {isBusy && (
               <div className="flex items-center gap-1 text-slate-400" aria-live="polite">
@@ -122,19 +179,61 @@ export function ChatWidget() {
             )}
           </div>
 
-          {messages.length === 0 && (
-            <div className="flex flex-wrap gap-1.5 px-4 pb-2">
-              {suggestions.map((s) => (
+          {kitDone && (
+            <div className="border-t border-slate-200 bg-white px-4 py-2">
+              <KitCartButton kit={kitDone} onDone={() => setOpen(false)} />
+            </div>
+          )}
+
+          {/* Kit en curso: chips con las opciones del paso actual. */}
+          {kitChoosing ? (
+            <div
+              role="group"
+              aria-label="Opciones del kit"
+              className="flex max-h-[76px] flex-wrap gap-1.5 overflow-y-auto border-t border-slate-200 px-4 py-2"
+            >
+              {kitChoosing.options.map((o) => (
                 <button
-                  key={s}
+                  key={o.id}
                   type="button"
-                  onClick={() => void send(s)}
-                  className="rounded-full border border-slate-300 bg-white px-2.5 py-1 text-[11px] text-slate-600 hover:border-brand-400 hover:text-brand-700"
+                  disabled={isBusy}
+                  onClick={() => void send(o.name)}
+                  className="rounded-full border border-brand-300 bg-brand-50 px-2.5 py-1 text-[11px] font-medium text-brand-800 hover:border-brand-500 hover:text-brand-900 disabled:opacity-50"
                 >
-                  {s}
+                  {o.name}
                 </button>
               ))}
+              <button
+                type="button"
+                disabled={isBusy}
+                onClick={() => void send('siguiente')}
+                className="rounded-full border border-dashed border-slate-300 bg-white px-2.5 py-1 text-[11px] text-slate-500 hover:border-slate-400 disabled:opacity-50"
+              >
+                Siguiente →
+              </button>
+              <button
+                type="button"
+                disabled={isBusy}
+                onClick={() => void send('es todo')}
+                className="rounded-full border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700 hover:border-emerald-500 disabled:opacity-50"
+              >
+                ✅ Es todo
+              </button>
             </div>
+          ) : (
+          <div className="flex max-h-[76px] flex-wrap gap-1.5 overflow-y-auto border-t border-slate-200 px-4 py-2">
+            {suggestions.map((s) => (
+              <button
+                key={s.label}
+                type="button"
+                onClick={() => void send(s.message)}
+                disabled={isBusy}
+                className="rounded-full border border-slate-300 bg-white px-2.5 py-1 text-[11px] text-slate-600 hover:border-brand-400 hover:text-brand-700 disabled:opacity-50"
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
           )}
 
           <div className="flex items-center gap-2 border-t border-slate-200 bg-white px-3 py-2.5">

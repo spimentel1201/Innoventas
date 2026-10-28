@@ -7,9 +7,10 @@
 | A — Vercel/Netlify + Supabase | CI automático | Supabase Cloud | Gratis/demo |
 | B — Supabase Hosting (estático) | `supabase functions serve` local | Cloud | Demo |
 | C — VPS/estático propio | Buckets o CDNs | Cloud | Varía |
+| D — Azure Static Web Apps | CI automático desde GitHub | Supabase Cloud | Free |
 
 Recomendación: **A**. El frontend es estático (Vite); toda la lógica sensible
-corre ya en Supabase Cloud.
+corre ya en Supabase Cloud. Para la opción D sigue `07-azure-static-web-apps.md`.
 
 ## 1. Build de producción
 
@@ -56,7 +57,9 @@ Supabase Dashboard → Auth → URL Configuration:
 ## 5. CORS y cabeceras
 
 - Vercel/Netlify: single-page app — servir `index.html` para cualquier ruta no-asset
-  (vercel.json/netlifyredirect rewrites) para que `createBrowserRouter` no dé 404 en refresh.
+  para que `createBrowserRouter` no dé 404 en refresh. **Vercel ya viene configurado**
+  con `vercel.json` en la raíz (catch-all rewrite a `/index.html`); en Netlify haría
+  falta un `public/_redirects` con `/*  /index.html  200`.
 - Las Edge Functions de Supabase responden con CORS abierto necesario
   (`apikey`/`Authorization` permitidos).
 

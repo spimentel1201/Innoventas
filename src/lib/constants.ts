@@ -51,11 +51,24 @@ export const SORT_OPTIONS = [
 
 export type SortOption = (typeof SORT_OPTIONS)[number]['value']
 
-export const CHAT_SUGGESTIONS = [
-  '¿Qué laptops tienen disponibles?',
-  '¿Cuánto tarda el envío?',
-  '¿Cómo rastreo mi pedido?',
-  'Política de cambios y garantías',
+/** Píldoras del chat: `label` es lo que se ve y `message` lo que se envía al bot. */
+export type ChatSuggestion = { label: string; message: string }
+
+// Atajos de producto (siempre visibles) + tareas frecuentes. El orden importa:
+// primero las categorías del catálogo para guiar al usuario hacia productos.
+export const CHAT_SUGGESTIONS: ChatSuggestion[] = [
+  { label: 'Audífonos', message: '¿Qué audífonos tienen disponibles?' },
+  { label: 'Laptops', message: '¿Qué laptops tienen disponibles?' },
+  { label: 'Monitores', message: '¿Qué monitores tienen disponibles?' },
+  { label: 'Teclados', message: '¿Qué teclados tienen disponibles?' },
+  { label: 'Mouse', message: '¿Qué mouse tienen disponibles?' },
+  { label: 'Impresoras', message: '¿Qué impresoras tienen disponibles?' },
+  { label: 'Almacenamiento', message: '¿Qué SSD y discos tienen disponibles?' },
+  { label: 'Accesorios', message: '¿Qué accesorios tienen disponibles?' },
+  { label: 'Ofertas', message: '¿Qué ofertas hay?' },
+  { label: 'Envíos', message: '¿Cuánto tarda el envío?' },
+  { label: 'Rastrear pedido', message: '¿Cómo rastreo mi pedido?' },
+  { label: 'Cambios y garantías', message: 'Política de cambios y garantías' },
 ]
 
 export const POLICY_SLUGS = ['privacidad', 'envios', 'cambios', 'garantias'] as const

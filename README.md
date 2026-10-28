@@ -8,11 +8,12 @@ asistente de preguntas con **Azure Custom Question Answering**.
 > reales. Nunca presenta datos frontend "inventados": si Supabase/Azure no están
 > configurados, la app muestra un aviso y estados vacíos/error.
 
-> ℹ️ **Catálogo con datos de referencia del mercado peruano**: los 27 productos son
+> ℹ️ **Catálogo con datos de referencia del mercado peruano**: los 38 productos son
 > SKUs reales (HP, ASUS, Acer, LG, Samsung, Xiaomi, Logitech, JBL, HyperX, Epson,
-> Kingston, Toshiba, SanDisk…) con precios en S/ tomados de tiendas peruanas
-> (listados de Falabella Perú, oct-2026). Son **referenciales**: el precio de una
-> tienda concreta varía por oferta/region. ⚠️ **Las fotos oficiales de producto
+> Kingston, Toshiba, SanDisk, Sony, QCY, Edifier, AOC, WD…) con precios en S/
+> tomados de tiendas peruanas (listados de Falabella Perú, oct-2026). Son
+> **referenciales**: el precio de una tienda concreta varía por oferta/region. ⚠️
+> **Las fotos oficiales de producto
 > pertenecen a Falabella/los fabricantes** — para producción hay que reemplazarlas
 > por imágenes con licencia propia.
 
@@ -72,8 +73,10 @@ docs/                        # guías de configuración y operación
 
 La migración `0005_seed.sql` crea **8 categorías y 27 productos técnicos DEMO**
 (nombres/inventarios de ejemplo), 6 ofertas con ventanas de fechas y la función
-`seed_demo_sales()` para poblar ventas y habilitar "más vendidos". Todo está marcado
-como demo en la UI y en la BD.
+`seed_demo_sales()` para poblar ventas y habilitar "más vendidos". `0009`
+reemplaza esos SKUs por modelos reales del mercado peruano y `0010_mas_productos.sql`
+suma **11 productos más** (5 audífonos y 6 de otras categorías) → **38 productos**
+en total. Todo está marcado como demo en la UI y en la BD.
 
 **Más vendidos**: nunca se inventan. Se calculan sobre `order_items` reales
 (`best_selling_products()`); sin ventas muestra su estado vacío.
@@ -131,6 +134,7 @@ Vuelve a iniciar sesión; verás «Panel de administración» en el menú de tu 
 
 - Chequeo de seguridad: `docs/05-security-checklist.md`.
 - Deploy (Vercel/Netlify/estático + funciones): `docs/04-deploy.md`.
+- Deploy en Azure (Static Web Apps, plan Free): `docs/07-azure-static-web-apps.md`.
 - Precios de envío de referencia (Perú): **S/ 15** fijo y gratis desde S/ 1,500;
   siempre **recalculados por el servidor** en `place_order`.
 - Estados del pedido: `pendiente → pagado → preparación → enviado → entregado`
