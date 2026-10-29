@@ -650,12 +650,14 @@ Deno.serve(async (req) => {
     return json({
       conversationId,
       message: {
-        id: inserted.id,
-        role: inserted.role,
-        content: inserted.content,
-        created_at: inserted.created_at,
-        confidence: inserted.confidence,
-      },
+      id: inserted.id,
+      role: inserted.role,
+      content: inserted.content,
+      created_at: inserted.created_at,
+      confidence: inserted.confidence,
+      // metadata.kit alimenta los chips del constructor de kit en el widget.
+      metadata: inserted.metadata ?? null,
+    },
       mode,
       confidence,
       intent: recIntent,
