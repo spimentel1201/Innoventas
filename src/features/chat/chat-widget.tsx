@@ -9,7 +9,7 @@ import { KitCartButton } from './kit-cart-button'
 import { type ChatAnswerMode, type ChatMessage } from '@/types/domain'
 
 /** Render mínimo de markdown del asistente: **negrita**, [enlaces](/ruta) y saltos de línea. */
-function renderAssistantContent(content: string, onNavigate?: () => void) {
+function renderAssistantContent(content: string) {
   const lines = content.split('\n')
   return lines.map((line, li) => (
     <span key={li}>
@@ -31,7 +31,6 @@ function renderAssistantContent(content: string, onNavigate?: () => void) {
               <Link
                 key={i}
                 to={link[2]}
-                onClick={onNavigate}
                 className="font-medium text-brand-700 underline-offset-2 hover:underline"
               >
                 {link[1]}
@@ -52,7 +51,7 @@ function sourceTagOf(mode: ChatAnswerMode | undefined): string | null {
   return 'W'
 }
 
-function MessageBubble({ message, onNavigate }: { message: ChatMessage; onNavigate?: () => void }) {
+function MessageBubble({ message }: { message: ChatMessage }) {
   const isUser = message.role === 'user'
   const lowConfidence = !isUser && message.confidence != null && message.confidence < 0.35
   const tag = isUser ? null : sourceTagOf(message.metadata?.mode)
@@ -84,7 +83,7 @@ function MessageBubble({ message, onNavigate }: { message: ChatMessage; onNaviga
                 ({tag})
               </span>
             )}
-            {renderAssistantContent(message.content, onNavigate)}
+            {renderAssistantContent(message.content)}
           </>
         )}
       </div>
@@ -167,7 +166,7 @@ export function ChatWidget() {
               </div>
             )}
             {messages.map((m) => (
-              <MessageBubble key={m.id} message={m} onNavigate={() => setOpen(false)} />
+              <MessageBubble key={m.id} message={m} />
             ))}
             {isBusy && (
               <div className="flex items-center gap-1 text-slate-400" aria-live="polite">
