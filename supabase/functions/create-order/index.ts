@@ -4,7 +4,10 @@
 // precios/ofertas/stock a la RPC `place_order` (SECURITY DEFINER) y devuelve
 // el pedido consolidado. El cliente NUNCA envía precios.
 // ─────────────────────────────────────────────────────────────────────────────
-import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2";
+// Pin exacto (en vez de "jsr:@supabase/supabase-js@2"): el bundler de Supabase
+// resolvía el spec flotante vía jsr.io meta.json y fallaba por timeout; con la
+// versión fija va directo al módulo.
+import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2.118.0";
 import { z } from "https://esm.sh/zod@3.23.8";
 
 const corsHeaders = {

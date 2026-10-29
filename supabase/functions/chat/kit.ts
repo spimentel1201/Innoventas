@@ -11,7 +11,8 @@
 // `chat_messages`). Si el usuario hace una pregunta intermedia, la respuesta
 // normal se emite conservando ese estado, así el flujo continúa después.
 // ─────────────────────────────────────────────────────────────────────────────
-import type { SupabaseClient } from "jsr:@supabase/supabase-js@2";
+// Pin exacto (ver comentario en supabase/functions/create-order/index.ts).
+import type { SupabaseClient } from "jsr:@supabase/supabase-js@2.118.0";
 
 export type KitProfile = "gamer" | "estudio" | "general";
 

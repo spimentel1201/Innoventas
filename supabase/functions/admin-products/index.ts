@@ -4,7 +4,8 @@
 // Verifica el rol 'admin' leyendo profiles con service role (nunca confía en
 // datos enviados por el cliente). Requiere JWT de usuario autenticado.
 // ─────────────────────────────────────────────────────────────────────────────
-import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2";
+// Pin exacto (ver comentario en supabase/functions/create-order/index.ts).
+import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2.118.0";
 import { z } from "https://esm.sh/zod@3.23.8";
 
 const corsHeaders = {

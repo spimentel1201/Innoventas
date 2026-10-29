@@ -6,7 +6,8 @@
 // - NUNCA expone la clave de Azure al frontend.
 // Despliegue: ver docs/02-azure-cqa-setup.md
 // ─────────────────────────────────────────────────────────────────────────────
-import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2";
+// Pin exacto (ver comentario en supabase/functions/create-order/index.ts).
+import { createClient, type SupabaseClient } from "jsr:@supabase/supabase-js@2.118.0";
 import { z } from "https://esm.sh/zod@3.23.8";
 import { detectKitIntent, handleKitMessage, startKit, type KitState } from "./kit.ts";
 
